@@ -5,7 +5,7 @@ from .schemas import User, UserBase, UserCreate
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 
 SECRET_KEY = "JAMIESKEY"
 ALGORITHM = "HS256"
@@ -15,6 +15,7 @@ app = FastAPI()
 
 users: list[User] = []
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated = "auto")
 
 def hash_password(password: str):
@@ -28,6 +29,23 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+#This protects endpoints and only allows users with a valid JWT token to use the endpoints.
+#The bearer token is what all the protected routes expect. 
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials entered", headers={"WWW-Authenticate": "Bearer"},)
+    try: 
+        payload = jwt.decode(token=SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    user = next((u for u in users if u.email == email), None)
+    if user is None:
+        raise credentials_exception
+    return user
 
 @app.get("/api/users")
 def get_users():
