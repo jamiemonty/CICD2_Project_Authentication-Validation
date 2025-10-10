@@ -1,10 +1,11 @@
 # app/main.py
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Depends
 from .schemas import User, UserBase, UserCreate
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta
+from fastapi.security import OAuth2PasswordRequestForm
 
 SECRET_KEY = "JAMIESKEY"
 ALGORITHM = "HS256"
@@ -46,6 +47,8 @@ def add_user(user: User):
     users.append(user)
     return user
 
+#Registeration for a user, checks if the user already exists, if not adds it to the list. Hashes the password 
+#for security using bcrypt to generate gibberish
 @app.post("/api/users/register", status_code=status.HTTP_201_CREATED)
 def register_user(user:UserCreate):
     if any(u.email == user.email for u in users):
@@ -55,3 +58,15 @@ def register_user(user:UserCreate):
     new_user = User(user_id=user_id, name=user.name, email=user.email, age=user.age, hashed_password=hashed_password)
     users.append(new_user)
     return {"msg":"USer registered successfully", "user_id": user_id}
+
+
+#Login endpoint, used JWT token so user can stay logged in for time set, 
+#Finds the user by email, verifies the password using the stored hash password,
+#creates a JWT token and returns the token to the client.
+@app.post("/api/users/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = next((u for u in users if u.email == form_data.username), None)
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid login credentials")
+    access_token = create_access_token({"sub": user.email}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    return {"access_token": access_token, "token_type":"bearer"}
