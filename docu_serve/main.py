@@ -1,9 +1,19 @@
 # app/main.py
 from fastapi import FastAPI, HTTPException, status
-from .schemas import User
+from .schemas import User, UserBase, UserCreate
+from passlib.context import CryptContext
 
 app = FastAPI()
+
 users: list[User] = []
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated = "auto")
+
+def hash_password(password: str):
+    return pwd_context.hash(password)
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
 
 @app.get("/api/users")
 def get_users():
