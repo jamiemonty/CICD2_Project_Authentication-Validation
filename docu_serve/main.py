@@ -3,7 +3,7 @@
 from fastapi import FastAPI, HTTPException, status, Depends
 from .schemas import User, UserBase, UserCreate
 from passlib.context import CryptContext
-from jose import jwt
+from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 
@@ -16,7 +16,7 @@ app = FastAPI()
 users: list[User] = []
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated = "auto")
+pwd_context = CryptContext(schemes=["argon2"], deprecated = "auto")
 
 def hash_password(password: str):
     return pwd_context.hash(password)
@@ -35,7 +35,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials entered", headers={"WWW-Authenticate": "Bearer"},)
     try: 
-        payload = jwt.decode(token=SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
@@ -51,8 +51,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 def get_users():
     return users
 
-@app.get("/api/users/{user_id}")
-def get_user(user_id: int):
+@app.get("/api/users/{user_id}", response_model=User)
+def get_user(user_id: int, current_user: User = Depends(get_current_user)):
     for u in users:
         if u.user_id == user_id:
            return u
@@ -75,13 +75,13 @@ def register_user(user:UserCreate):
     hashed_password = hash_password(user.password)
     new_user = User(user_id=user_id, name=user.name, email=user.email, age=user.age, hashed_password=hashed_password)
     users.append(new_user)
-    return {"msg":"USer registered successfully", "user_id": user_id}
+    return {"msg":"User registered successfully", "user_id": user_id}
 
 
 #Login endpoint, used JWT token so user can stay logged in for time set, 
 #Finds the user by email, verifies the password using the stored hash password,
 #creates a JWT token and returns the token to the client.
-@app.post("/api/users/login")
+@app.post("/api/users/login", status_code=status.HTTP_202_ACCEPTED)
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = next((u for u in users if u.email == form_data.username), None)
     if not user or not verify_password(form_data.password, user.hashed_password):

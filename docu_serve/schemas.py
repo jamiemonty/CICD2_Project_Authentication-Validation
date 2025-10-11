@@ -7,7 +7,7 @@ class UserBase(BaseModel):
     age: conint(gt=18)
 
 class UserCreate(UserBase):
-     password: constr(min_length=8, max_length=60, pattern=r'^(?=.*[A-Z])(?=.*\d).*$')
+     password: constr(min_length=8, max_length=60)
 
 class User(UserBase):
      user_id: int
