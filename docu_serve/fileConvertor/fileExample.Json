@@ -1,0 +1,19 @@
+[
+    {
+        "name": "Aidan Malone",
+        "age": 22,
+        "courses": [
+            "CICD",
+            "RTOS"
+        ]
+    },
+    {
+        "name": "Jamie Monty",
+        "age": 21,
+        "courses": [
+            "FYP",
+            "Enterprise",
+            "RTOS"
+        ]
+    }
+]
