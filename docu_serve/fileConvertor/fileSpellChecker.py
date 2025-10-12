@@ -6,7 +6,7 @@ sugg = []
 dict = []
 fin = ' '
 
-with open('wordlist.txt')as dict_file:
+with open('docu_serve/fileConvertor/wordlist.txt')as dict_file:
     for line in dict_file:
         line = line.replace('\n', '')
         dict.append(line)
@@ -20,7 +20,20 @@ for word in text:
 
     else:
         textcheck.append(word)
-        
+
+print(*textcheck)
+print('suggestions:')
+
+for i in sugg:
+    check = difflib.get_close_matches(i, dict)
+    for item in check:
+        fin += item + ', '
+
+    fin = fin[:-2]
+    print(f'{i}:', fin)
+
+    fin = ''
+
 
 
 
