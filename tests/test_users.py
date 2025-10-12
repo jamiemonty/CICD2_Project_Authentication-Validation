@@ -3,8 +3,8 @@ import pytest
 
 from tests.conftest import client
 
-def user_payload(uid=1, name="Paul", email="pl@atu.ie", age=25, sid="S1234567"):
-    return {"user_id": uid, "name": name, "email": email, "age": age, "student_id": sid}
+def user_payload(uid=1, name="Paul", email="pl@atu.ie", age=25, username="paul123", password="password123"):
+    return {"user_id": uid, "name": name, "email": email, "age": age, "username": username, "password": password}
 
 def test_create_user_ok(client):
     r = client.post("/api/users", json=user_payload())
@@ -19,10 +19,10 @@ def test_duplicate_user_id_conflict(client):
     assert r.status_code == 409 # duplicate id -> conflict
     assert "exists" in r.json()["detail"].lower()   
 
-@pytest.mark.parametrize("bad_sid", ["BAD123", "s1234567", "S123", "S12345678"])
-def test_bad_student_id_422(client, bad_sid):
-    r = client.post("/api/users", json=user_payload(uid=3, sid=bad_sid))
-    assert r.status_code == 422 # pydantic validation error     
+@pytest.mark.parametrize("bad_username", ["ab", "a", ""])  # usernames too short
+def test_bad_username_422(client, bad_username):
+    r = client.post("/api/users", json=user_payload(uid=3, username=bad_username))
+    assert r.status_code == 422 # pydantic validation error
 
 def test_get_user_404(client):
     r = client.get("/api/users/999")

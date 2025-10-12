@@ -1,10 +1,10 @@
-# app/main.py
-from fastapi import FastAPI, HTTPException, status
+import fastapi
+from fastapi import HTTPException, status
 from .schemas import User
 from pydantic import BaseModel
 from typing import Optional
 
-app = FastAPI()
+app = fastapi.FastAPI()
 users: list[User] = []
 
 
