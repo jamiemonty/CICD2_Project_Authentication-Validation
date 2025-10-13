@@ -1,12 +1,14 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import Annotated
+# app/schemas.py
+from pydantic import BaseModel, EmailStr, constr, conint
 
-
-class User(BaseModel):
-    user_id: int
-    name: Annotated[str, Field(min_length=2, max_length=50)]
+class UserBase(BaseModel):
+    name: constr(min_length=2, max_length=50)
     email: EmailStr
-    age: Annotated[int, Field(gt=18)]
-    username: Annotated[str, Field(min_length=3, max_length=20)]
-    password: Annotated[str, Field(min_length=6)]
+    age: conint(gt=18)
 
+class UserCreate(UserBase):
+     password: constr(min_length=8, max_length=60)
+
+class User(UserBase):
+     user_id: int
+     hashed_password: str
