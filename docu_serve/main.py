@@ -6,13 +6,17 @@ from .schemas import User, UserBase, UserCreate
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+import os
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 
-SECRET_KEY = "JAMIESKEY"
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY", "JAMIESKEY") #fallback key for development
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-app = FastAPI()
+app = FastAPI(title = "Login and Registration API")
 
 users: list[User] = []
 
@@ -21,8 +25,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 pwd_context = CryptContext(schemes=["argon2"], deprecated = "auto")
 
 PRESET_ADMIN = {
-    "email": "G00419525@atu.ie",
-    "hashed_password": pwd_context.hash("password"), # Pre-hashed password for admin
+    "email": os.getenv("ADMIN_EMAIL", "G00419525@atu.ie"),
+    "hashed_password": os.getenv("ADMIN_PASSWORD_HASHED", pwd_context.hash("password")), # Pre-hashed password for admin
     "role": "admin"
 }
 
