@@ -8,7 +8,6 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
      password: constr(min_length=8, max_length=60)
-     role: str = "user" # Default role is 'user'
 
 class User(UserBase):
      user_id: int

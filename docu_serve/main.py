@@ -16,8 +16,15 @@ app = FastAPI()
 
 users: list[User] = []
 
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 pwd_context = CryptContext(schemes=["argon2"], deprecated = "auto")
+
+PRESET_ADMIN = {
+    "email": "G00419525@atu.ie",
+    "hashed_password": pwd_context.hash("password"), # Pre-hashed password for admin
+    "role": "admin"
+}
 
 def hash_password(password: str):
     return pwd_context.hash(password)
@@ -48,6 +55,20 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     return user
 
+#Preset admin user details
+@app.on_event("startup")
+def startup_event(): 
+    admin_user = User(
+        user_id = 0,
+        name = "System Admin",
+        email = PRESET_ADMIN["email"],
+        age = 22,
+        hashed_password = PRESET_ADMIN["hashed_password"],
+        role = "admin"
+    )
+    users.append(admin_user)
+    print("Admin account loaded: {admin_user.email}")
+
 @app.get("/api/users")
 def get_users():
     return users
@@ -65,11 +86,13 @@ def get_user(user_id: int):
 #for security using bcrypt to generate gibberish
 @app.post("/api/users/register", status_code=status.HTTP_201_CREATED)
 def register_user(user:UserCreate):
+    if user.email == PRESET_ADMIN["email"]:
+        raise HTTPException(status_code = status.HTTP_403_FORBIDDEN, detail="Cannot registe as admin")
     if any(u.email == user.email for u in users):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
     user_id = len(users) + 1
     hashed_password = hash_password(user.password)
-    new_user = User(user_id=user_id, name=user.name, email=user.email, age=user.age, hashed_password=hashed_password, role=user.role)
+    new_user = User(user_id=user_id, name=user.name, email=user.email, age=user.age, hashed_password=hashed_password, role="user")
     users.append(new_user)
     return {"msg":"User registered successfully", "user_id": user_id}
 
@@ -83,5 +106,5 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid login credentials")
     role = "admin" if user.email.endswith("@admin.com") else "user"
-    access_token = create_access_token({"sub": user.email}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    return {"access_token": access_token, "token_type":"bearer", "role": role}
+    access_token = create_access_token({"sub": user.email, "role": user.role}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    return {"access_token": access_token, "token_type":"bearer", "role": user.role}
