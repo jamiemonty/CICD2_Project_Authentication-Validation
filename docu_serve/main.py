@@ -69,7 +69,7 @@ def register_user(user:UserCreate):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
     user_id = len(users) + 1
     hashed_password = hash_password(user.password)
-    new_user = User(user_id=user_id, name=user.name, email=user.email, age=user.age, hashed_password=hashed_password)
+    new_user = User(user_id=user_id, name=user.name, email=user.email, age=user.age, hashed_password=hashed_password, role=user.role)
     users.append(new_user)
     return {"msg":"User registered successfully", "user_id": user_id}
 
@@ -82,5 +82,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     user = next((u for u in users if u.email == form_data.username), None)
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid login credentials")
+    role = "admin" if user.email.endswith("@admin.com") else "user"
     access_token = create_access_token({"sub": user.email}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    return {"access_token": access_token, "token_type":"bearer"}
+    return {"access_token": access_token, "token_type":"bearer", "role": role}
