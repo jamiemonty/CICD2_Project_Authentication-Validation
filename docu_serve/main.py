@@ -1,9 +1,9 @@
 import sqlite3
 from fastapi import FastAPI, HTTPException, Depends, status
 from passlib.context import CryptContext
-from jose import jwt
+from jose import jwt, JWTError
 from datetime import datetime, timedelta
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 import os
 from dotenv import load_dotenv
 
@@ -51,9 +51,9 @@ def create_admin():
             ("System Admin", ADMIN_EMAIL, 22, hashed_pw, "admin")
         )
         conn.commit()
-        print(f"✅ Admin user created: {ADMIN_EMAIL}")
+        print(f"Admin user created: {ADMIN_EMAIL}")
     else:
-        print(f"🔒 Admin already exists: {ADMIN_EMAIL}")
+        print(f"Admin already exists: {ADMIN_EMAIL}")
     conn.close()
 
 # User registration — cannot register as admin
