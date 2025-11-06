@@ -1,6 +1,10 @@
 import sqlite3
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, status
 from passlib.context import CryptContext
+from .database import engine, get_db
+from .models import Base
+from fastapi.middleware.cors import CORSMiddleware
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
@@ -20,10 +24,21 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password")
 app = FastAPI(title="User Authentication API")
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
-def get_db():
-    conn = sqlite3.connect("users.db")
-    conn.row_factory = sqlite3.Row
-    return conn
+# Replacing @app.on_event("startup")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
+ 
+app = FastAPI(lifespan=lifespan)
+ 
+# CORS (add this block)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # dev-friendly; tighten in prod
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def hash_password(password: str):
     return pwd_context.hash(password)
