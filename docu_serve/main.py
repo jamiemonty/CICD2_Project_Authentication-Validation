@@ -1,5 +1,7 @@
 import sqlite3
 from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
@@ -10,6 +12,15 @@ from dotenv import load_dotenv
 # Load .env file for secret key and admin credentials
 load_dotenv()
 
+app = FastAPI(title="Authentication Service")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 SECRET_KEY = os.getenv("SECRET_KEY", "JAMIESKEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -17,8 +28,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "G00419525@atu.ie")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password")
 
-app = FastAPI(title="User Authentication API")
+
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
 def get_db():
     conn = sqlite3.connect("users.db")
@@ -34,7 +46,7 @@ def verify_password(plain_password, hashed_password):
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "aud": "delete-service"})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # Create default admin if not exists
@@ -91,4 +103,4 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
         {"sub": user["email"], "role": user["role"]},
         timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    return {"access_token": access_token, "token_type": "bearer", "role": user["role"]}
+    return {"access_token": access_token, "token_type": "bearer"}
