@@ -4,7 +4,7 @@ import json
 import os
 import sqlite3
 
-RABBIT_URL=os.getenv("RABBIT_URL")
+RABBIT_URL=os.getenv("RABBIT_URL", "amqps://ykvaygzy:Kg8o0HCEw9hRygtPpnQ3bjWv7N9KU0xZ@stingray.rmq.cloudamqp.com/ykvaygzy")
 
 async def main():
     connection = await aio_pika.connect_robust(RABBIT_URL)

@@ -2,11 +2,9 @@ import sqlite3
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.utils import get_openapi
 from passlib.context import CryptContext
-from .database import engine, get_db
+from . database import engine, get_db
 from .models import Base
-from fastapi.middleware.cors import CORSMiddleware
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
@@ -16,22 +14,12 @@ from dotenv import load_dotenv
 # Load .env file for secret key and admin credentials
 load_dotenv()
 
-app = FastAPI(title="Authentication Service")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "G00419525@atu.ie")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password")
-
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
@@ -41,13 +29,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     yield
- 
-app = FastAPI(lifespan=lifespan)
- 
+
+app = FastAPI(title="Authentication Service", lifespan=lifespan)
+
 # CORS (add this block)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # dev-friendly; tighten in prod
+    allow_origins=["*"],  # dev-friendly
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
