@@ -1,5 +1,7 @@
 annotated-types==0.7.0
 anyio==4.10.0
+argon2
+aio_pika
 bcrypt==5.0.0
 certifi==2025.8.3
 click==8.3.0
@@ -19,6 +21,7 @@ iniconfig==2.1.0
 mccabe==0.7.0
 packaging==25.0
 passlib==1.7.4
+argon2-cffi==23.1.0
 pluggy==1.6.0
 psycopg2-binary==2.9.10
 pyasn1==0.6.1
