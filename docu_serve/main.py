@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
-from . database import engine, get_db
+from .database import get_db
 from .models import Base
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
@@ -18,17 +18,37 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY not found in environment variables!  Check your .env.dev file")
+
+print(f"✅ SECRET_KEY loaded:  {SECRET_KEY[: 10]}...")
+
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "G00419525@atu.ie")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password")
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
-# Replacing @app.on_event("startup")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    # Create database and admin user on startup
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE email=?", (ADMIN_EMAIL,))
+    admin = cursor.fetchone()
+    if not admin:
+        hashed_pw = hash_password(ADMIN_PASSWORD)
+        cursor.execute(
+            "INSERT INTO users (name, email, age, hashed_password, role) VALUES (?, ?, ?, ?, ?)",
+            ("System Admin", ADMIN_EMAIL, 22, hashed_pw, "admin")
+        )
+        conn.commit()
+        print(f"Admin user created: {ADMIN_EMAIL}")
+    else:
+        print(f"Admin already exists: {ADMIN_EMAIL}")
+    conn.close()
     yield
+
 
 app = FastAPI(title="Authentication Service", lifespan=lifespan)
 
@@ -54,23 +74,23 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 # Create default admin if not exists
-@app.on_event("startup")
-def create_admin():
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE email=?", (ADMIN_EMAIL,))
-    admin = cursor.fetchone()
-    if not admin:
-        hashed_pw = hash_password(ADMIN_PASSWORD)
-        cursor.execute(
-            "INSERT INTO users (name, email, age, hashed_password, role) VALUES (?, ?, ?, ?, ?)",
-            ("System Admin", ADMIN_EMAIL, 22, hashed_pw, "admin")
-        )
-        conn.commit()
-        print(f"Admin user created: {ADMIN_EMAIL}")
-    else:
-        print(f"Admin already exists: {ADMIN_EMAIL}")
-    conn.close()
+# @app.on_event("startup")
+# def create_admin():
+#     conn = get_db()
+#     cursor = conn.cursor()
+#     cursor.execute("SELECT * FROM users WHERE email=?", (ADMIN_EMAIL,))
+#     admin = cursor.fetchone()
+#     if not admin:
+#         hashed_pw = hash_password(ADMIN_PASSWORD)
+#         cursor.execute(
+#             "INSERT INTO users (name, email, age, hashed_password, role) VALUES (?, ?, ?, ?, ?)",
+#             ("System Admin", ADMIN_EMAIL, 22, hashed_pw, "admin")
+#         )
+#         conn.commit()
+#         print(f"Admin user created: {ADMIN_EMAIL}")
+#     else:
+#         print(f"Admin already exists: {ADMIN_EMAIL}")
+#     conn.close()
 
 # User registration — cannot register as admin
 @app.post("/api/users/register", status_code=status.HTTP_201_CREATED)

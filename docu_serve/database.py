@@ -1,48 +1,21 @@
-import os
-import time
-from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import OperationalError
- 
-# Pick env file by APP_ENV (default dev)
-envfile = {
-    "dev": ".env.dev",
-    "docker": ".env.docker",
-    "test": ".env.test",
-}.get(os.getenv("APP_ENV", "dev"), ".env.dev")
- 
-load_dotenv(envfile, override=True)
- 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app.db")
-SQL_ECHO = os.getenv("SQL_ECHO", "false").lower() == "true"
-RETRIES = int(os.getenv("DB_RETRIES", "10"))
-DELAY = float(os.getenv("DB_RETRY_DELAY", "1.5"))
- 
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
- 
-# small retry (harmless for SQLite, useful for Postgres)
-for _ in range(RETRIES):
-    try:
-        engine = create_engine(
-            DATABASE_URL, pool_pre_ping=True, echo=SQL_ECHO, connect_args=connect_args
-        )
-        with engine.connect():  # smoke test
-            pass
-        break
-    except OperationalError:
-        time.sleep(DELAY)
-else:
-    raise OperationalError(
-        f"Could not connect to database at {DATABASE_URL!r} after {RETRIES} retries"
-    )
- 
-SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, expire_on_commit=False)
- 
- 
+import sqlite3
+
 def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    conn = sqlite3.connect("users.db")
+    conn.row_factory = sqlite3.Row
+    
+    # Create table if not exists
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        age INTEGER,
+        hashed_password TEXT NOT NULL,
+        role TEXT DEFAULT 'user'
+    )
+    """)
+    conn.commit()
+    
+    return conn
