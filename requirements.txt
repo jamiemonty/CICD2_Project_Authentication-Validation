@@ -1,6 +1,6 @@
 annotated-types==0.7.0
 anyio==4.10.0
-argon2
+argon2-cffi==23.1.0
 aio_pika
 bcrypt==5.0.0
 certifi==2025.8.3
