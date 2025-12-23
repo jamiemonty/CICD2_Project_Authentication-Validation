@@ -1,10 +1,10 @@
-import sqlite3
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
-from .database import get_db
-from .models import Base
+from sqlalchemy.orm import Session
+from .database import engine, get_db
+from .models import Base, User
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
 import aio_pika
@@ -29,7 +29,13 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
 async def publish_event(event_type: str, payload: dict):
+    print(f"Attempting to publish event: {event_type} with payload: {payload}")
+    print(f"RABBIT_URL: {RABBIT_URL}")
     try:
+        if not RABBIT_URL:
+            print("ERROR: RABBIT_URL is None or empty")
+            return
+        
         connection = await aio_pika.connect_robust(RABBIT_URL)
         channel = await connection.channel()
         exchange = await channel.declare_exchange(
@@ -38,27 +44,35 @@ async def publish_event(event_type: str, payload: dict):
         message = aio_pika.Message(body=json.dumps(payload).encode())
         await exchange.publish(message, routing_key=event_type)
         await connection.close()
+        print(f"Successfully published event: {event_type}")
     except Exception as e:
-        print(f"Failed to publish event:", e)
+        print(f"Failed to publish event: {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create database and admin user on startup
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE email=?", (ADMIN_EMAIL,))
-    admin = cursor.fetchone()
-    if not admin:
-        hashed_pw = hash_password(ADMIN_PASSWORD)
-        cursor.execute(
-            "INSERT INTO users (name, email, age, hashed_password, role) VALUES (?, ?, ?, ?, ?)",
-            ("System Admin", ADMIN_EMAIL, 22, hashed_pw, "admin")
-        )
-        conn.commit()
-        print(f"Admin user created: {ADMIN_EMAIL}")
-    else:
-        print(f"Admin already exists: {ADMIN_EMAIL}")
-    conn.close()
+    # Create database tables
+    Base.metadata.create_all(bind=engine)
+    
+    # Create admin user on startup
+    db = get_db()
+    try:
+        admin = db.query(User).filter(User.email == ADMIN_EMAIL).first()
+        if not admin:
+            hashed_pw = hash_password(ADMIN_PASSWORD)
+            admin_user = User(
+                name="System Admin",
+                email=ADMIN_EMAIL,
+                age=22,
+                hashed_password=hashed_pw,
+                role="admin"
+            )
+            db.add(admin_user)
+            db.commit()
+            print(f"Admin user created: {ADMIN_EMAIL}")
+        else:
+            print(f"Admin already exists: {ADMIN_EMAIL}")
+    finally:
+        db.close()
     yield
 
 
@@ -87,46 +101,46 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 
 # User registration — cannot register as admin
 @app.post("/api/users/register", status_code=status.HTTP_201_CREATED)
-async def register_user(name: str, email: str, age: int, password: str):
+async def register_user(name: str, email: str, age: int, password: str, db: Session = Depends(get_db)):
     if email == ADMIN_EMAIL:
         raise HTTPException(status_code=403, detail="Cannot register as admin")
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE email=?", (email,))
-    if cursor.fetchone():
+    
+    existing_user = db.query(User).filter(User.email == email).first()
+    if existing_user:
         raise HTTPException(status_code=409, detail="Email already exists")
+    
     hashed_password = hash_password(password)
-    cursor.execute(
-        "INSERT INTO users (name, email, age, hashed_password, role) VALUES (?, ?, ?, ?, ?)",
-        (name, email, age, hashed_password, "user")
+    new_user = User(
+        name=name,
+        email=email,
+        age=age,
+        hashed_password=hashed_password,
+        role="user"
     )
-    conn.commit()
-#Publish event to RabbitMQ
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # Publish event to RabbitMQ
     await publish_event("user.created", {
-        "user_id": cursor.lastrowid,
+        "user_id": new_user.user_id,
         "name": name,
         "email": email,
         "age": age,
         "role": "user"
     })
 
-    user_id = cursor.lastrowid
-    conn.close()
-    return {"msg": "User registered successfully", "user_id": user_id}
+    return {"msg": "User registered successfully", "user_id": new_user.user_id}
 
 # Login (returns JWT token)
 @app.post("/api/users/login", status_code=status.HTTP_202_ACCEPTED)
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    conn = get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE email=?", (form_data.username,))
-    user = cursor.fetchone()
-    conn.close()
-    if not user or not verify_password(form_data.password, user["hashed_password"]):
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == form_data.username).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     access_token = create_access_token(
-        {"sub": user["email"], "role": user["role"]},
+        {"sub": user.email, "role": user.role},
         timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     return {"access_token": access_token, "token_type": "bearer"}

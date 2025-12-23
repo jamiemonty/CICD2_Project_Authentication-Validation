@@ -9,7 +9,9 @@ class Base(DeclarativeBase):
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    password: Mapped[str] = mapped_column(String(255), nullable=False)
-    full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    age: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(50), default="user", nullable=False)
