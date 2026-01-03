@@ -1,4 +1,13 @@
 {
-    "python-envs.defaultEnvManager": "ms-python.python:system",
-    "python-envs.pythonProjects": []
+    "postgresql.connections": [
+        {
+            "label": "Local Docker PostgreSQL",
+            "host": "127.0.0.1",
+            "port": "5433",
+            "user": "exampleuser",
+            "password": "examplepassword",
+            "database": "appdb",
+            "ssl": false
+        }
+    ]
 }
