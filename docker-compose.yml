@@ -1,28 +1,61 @@
 services:
   db:
     image: postgres:17-alpine
-    env_file: .env.docker
+    container_name: auth-db
+    environment:
+      POSTGRES_USER: authuser
+      POSTGRES_PASSWORD:  authpass123
+      POSTGRES_DB: authdb
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - auth-postgres-data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U \"$${POSTGRES_USER:-app}\" -d \"$${POSTGRES_DB:-appdb}\""]
+      test: ["CMD-SHELL", "pg_isready -U authuser -d authdb"]
       interval: 5s
+      timeout: 5s
       retries: 10
     restart: unless-stopped
+    networks:
+      - microservices-network
  
   api:
     build: .
-    env_file: .env.docker
-    environment:
+    container_name: auth-api
+    environment: 
       - APP_ENV=docker
+      - DATABASE_URL=postgresql+psycopg2://authuser:authpass123@auth-db:5432/authdb
+      - RABBIT_URL=amqps://ykvaygzy:Kg8o0HCEw9hRygtPpnQ3bjWv7N9KU0xZ@stingray.rmq.cloudamqp.com/ykvaygzy
+      - SECRET_KEY=JAMIESKEY
+      - ADMIN_EMAIL=G00419525@atu.ie
+      - ADMIN_PASSWORD=password
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "8001:8000"
     restart: unless-stopped
- 
+    networks: 
+      - microservices-network
+
+  worker:
+    build: .
+    container_name: auth-worker
+    environment:
+      - APP_ENV=docker
+      - DATABASE_URL=postgresql+psycopg2://authuser:authpass123@auth-db:5432/authdb
+      - RABBIT_URL=amqps://ykvaygzy:Kg8o0HCEw9hRygtPpnQ3bjWv7N9KU0xZ@stingray.rmq.cloudamqp.com/ykvaygzy
+    depends_on:
+      db: 
+        condition: service_healthy
+    command: python worker.py
+    restart: unless-stopped
+    networks: 
+      - microservices-network
+
 volumes:
-  postgres-data: {}
+  auth-postgres-data: 
+
+networks:
+  microservices-network:
+    external: true
