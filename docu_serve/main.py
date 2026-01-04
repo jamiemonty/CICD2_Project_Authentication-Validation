@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from .database import engine, get_db
+from .database import engine, SessionLocal, get_db
 from .models import Base, User
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     
     # Create admin user on startup
-    db = get_db()
+    db = SessionLocal()
     try:
         admin = db.query(User).filter(User.email == ADMIN_EMAIL).first()
         if not admin:
@@ -127,7 +127,8 @@ async def register_user(name: str, email: str, age: int, password: str, db: Sess
         "name": name,
         "email": email,
         "age": age,
-        "role": "user"
+        "role": "user",
+        "hashed_password": hashed_password
     })
 
     return {"msg": "User registered successfully", "user_id": new_user.user_id}
