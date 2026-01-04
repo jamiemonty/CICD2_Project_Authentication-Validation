@@ -2,8 +2,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session, SessionLocal
-from .database import engine, get_db
+from sqlalchemy.orm import Session
+from .database import engine, SessionLocal
 from .models import Base, User
 from jose import jwt, JWTError
 from datetime import datetime, timedelta
@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     
     # Create admin user on startup
-    db = get_db()
+    db = SessionLocal()
     try:
         admin = db.query(User).filter(User.email == ADMIN_EMAIL).first()
         if not admin:
