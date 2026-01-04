@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-from .database import engine, SessionLocal
+from .database import engine, SessionLocal, get_db
 from .models import Base, User
 from jose import jwt, JWTError
 from datetime import datetime, timedelta

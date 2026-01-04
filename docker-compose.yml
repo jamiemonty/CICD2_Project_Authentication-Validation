@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   db:
     image: postgres:17-alpine
@@ -17,15 +19,15 @@ services:
       retries: 10
     restart: unless-stopped
     networks:
-      - microservices-network
- 
+      - microservices-network 
+
   api:
     build: .
     container_name: auth-api
-    environment: 
+    environment:
       - APP_ENV=docker
       - DATABASE_URL=postgresql+psycopg2://authuser:authpass123@auth-db:5432/authdb
-      - RABBIT_URL=amqps://ykvaygzy:Kg8o0HCEw9hRygtPpnQ3bjWv7N9KU0xZ@stingray.rmq.cloudamqp.com/ykvaygzy
+      - RABBIT_URL=amqp://guest:guest@rabbitmq:5672/
       - SECRET_KEY=JAMIESKEY
       - ADMIN_EMAIL=G00419525@atu.ie
       - ADMIN_PASSWORD=password
@@ -36,26 +38,26 @@ services:
       - "8001:8000"
     restart: unless-stopped
     networks: 
-      - microservices-network
+      - microservices-network 
 
   worker:
-    build: .
+    build:  .
     container_name: auth-worker
     environment:
       - APP_ENV=docker
       - DATABASE_URL=postgresql+psycopg2://authuser:authpass123@auth-db:5432/authdb
-      - RABBIT_URL=amqps://ykvaygzy:Kg8o0HCEw9hRygtPpnQ3bjWv7N9KU0xZ@stingray.rmq.cloudamqp.com/ykvaygzy
+      - RABBIT_URL=amqp://guest:guest@rabbitmq:5672/
     depends_on:
       db: 
         condition: service_healthy
     command: python worker.py
     restart: unless-stopped
     networks: 
-      - microservices-network
+      - microservices-network 
 
 volumes:
   auth-postgres-data: 
 
 networks:
   microservices-network:
-    external: true
+    external:  true
