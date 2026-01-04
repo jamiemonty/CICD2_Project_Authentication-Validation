@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, SessionLocal
 from .database import engine, get_db
 from .models import Base, User
 from jose import jwt, JWTError
@@ -127,7 +127,7 @@ async def register_user(name: str, email: str, age: int, password: str, db: Sess
         "name": name,
         "email": email,
         "age": age,
-        "role": "user"
+        "role": "user",
         "hashed_password": hashed_password
     })
 
