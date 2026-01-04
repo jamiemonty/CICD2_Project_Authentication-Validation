@@ -128,6 +128,7 @@ async def register_user(name: str, email: str, age: int, password: str, db: Sess
         "email": email,
         "age": age,
         "role": "user"
+        "hashed_password": hashed_password
     })
 
     return {"msg": "User registered successfully", "user_id": new_user.user_id}
