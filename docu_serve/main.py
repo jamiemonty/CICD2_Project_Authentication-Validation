@@ -201,3 +201,74 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+# Health check endpoints
+@app.get("/health", status_code=status.HTTP_200_OK)
+async def health_check():
+    """Basic health check - returns 200 if service is running"""
+    return {
+        "status": "healthy",
+        "service": "authentication-service",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@app.get("/health/ready", status_code=status.HTTP_200_OK)
+async def readiness_check(db: Session = Depends(get_db)):
+    """Readiness check - verifies database connectivity"""
+    try:
+        # Test database connection
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
+        db_status = "healthy"
+    except Exception as e:
+        db_status = f"unhealthy: {str(e)}"
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"status": "not ready", "database": db_status}
+        )
+    
+    return {
+        "status": "ready",
+        "database": db_status,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@app.get("/health/live", status_code=status.HTTP_200_OK)
+async def liveness_check():
+    """Liveness check - returns 200 if service is alive (for Kubernetes)"""
+    return {
+        "status": "alive",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@app.get("/health/rabbitmq", status_code=status.HTTP_200_OK)
+async def rabbitmq_health():
+    """RabbitMQ health check - tests connection and circuit breaker status"""
+    circuit_status = rabbitmq_circuit_breaker.state
+    
+    rabbitmq_status = {
+        "circuit_breaker_state": circuit_status,
+        "failure_count": rabbitmq_circuit_breaker.failure_count,
+        "configured": RABBIT_URL is not None
+    }
+    
+    if circuit_status == "OPEN":
+        rabbitmq_status["status"] = "unhealthy"
+        rabbitmq_status["message"] = "Circuit breaker is OPEN - RabbitMQ unavailable"
+        return rabbitmq_status
+    
+    if not RABBIT_URL:
+        rabbitmq_status["status"] = "not_configured"
+        rabbitmq_status["message"] = "RABBIT_URL not set"
+        return rabbitmq_status
+    
+    # Try to connect to RabbitMQ
+    try:
+        await _publish_to_rabbitmq("health.check", {"timestamp": datetime.utcnow().isoformat()})
+        rabbitmq_status["status"] = "healthy"
+        rabbitmq_status["message"] = "Connection successful"
+    except Exception as e:
+        rabbitmq_status["status"] = "unhealthy"
+        rabbitmq_status["message"] = f"Connection failed: {str(e)}"
+    
+    return rabbitmq_status

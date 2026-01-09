@@ -13,7 +13,7 @@ def test_register_user_forbidden_admin():
         "name": "Hacker",
         "email": "G00419525@atu.ie",
         "age": 25,
-        "password": "password123"
+        "password": "Password123!"
     })
     assert response.status_code == 403
     assert "admin" in response.json()["detail"].lower()
@@ -41,7 +41,7 @@ def test_register_user_success(mock_publish):
         "name": "Test User",
         "email": "test@example.com",
         "age": 25,
-        "password": "password123"
+        "password": "Password123!"
     })
     
     app.dependency_overrides.clear()
@@ -70,7 +70,7 @@ def test_register_duplicate_email():
         "name": "New User",
         "email": "existing@example.com",
         "age": 30,
-        "password": "password123"
+        "password": "Password123!"
     })
     
     app.dependency_overrides.clear()
@@ -86,7 +86,7 @@ def test_login_success():
     def mock_db_gen():
         mock_db = MagicMock()
         # Create a mock user with hashed password
-        hashed_pw = hash_password("correctpassword")
+        hashed_pw = hash_password("Correct123!")
         mock_user = User(user_id=1, name="Test", email="test@example.com",
                         age=25, hashed_password=hashed_pw, role="user")
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user
@@ -96,7 +96,7 @@ def test_login_success():
     
     response = client.post("/api/users/login", data={
         "username": "test@example.com",
-        "password": "correctpassword"
+        "password": "Correct123!"
     })
     
     app.dependency_overrides.clear()
@@ -113,7 +113,7 @@ def test_login_invalid_password():
     def mock_db_gen():
         mock_db = MagicMock()
         # Create a mock user
-        hashed_pw = hash_password("correctpassword")
+        hashed_pw = hash_password("Correct123!")
         mock_user = User(user_id=1, name="Test", email="test@example.com",
                         age=25, hashed_password=hashed_pw, role="user")
         mock_db.query.return_value.filter.return_value.first.return_value = mock_user
@@ -123,7 +123,7 @@ def test_login_invalid_password():
     
     response = client.post("/api/users/login", data={
         "username": "test@example.com",
-        "password": "wrongpassword"
+        "password": "Wrong123!"
     })
     
     app.dependency_overrides.clear()
@@ -146,7 +146,7 @@ def test_login_nonexistent_user():
     
     response = client.post("/api/users/login", data={
         "username": "nonexistent@example.com",
-        "password": "anypassword"
+        "password": "AnyPass1!"
     })
     
     app.dependency_overrides.clear()
