@@ -12,6 +12,7 @@ import json
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 import os
 from dotenv import load_dotenv
+import asyncio
 
 # Load .env file for secret key and admin credentials
 load_dotenv()
@@ -28,7 +29,68 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password")
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
+# Circuit Breaker for RabbitMQ
+class CircuitBreaker:
+    def __init__(self, failure_threshold=5, timeout=60, half_open_attempts=3):
+        self.failure_threshold = failure_threshold
+        self.timeout = timeout  # seconds before trying again
+        self.half_open_attempts = half_open_attempts
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
+        
+    def call(self, func):
+        async def wrapper(*args, **kwargs):
+            if self.state == "OPEN":
+                if datetime.utcnow().timestamp() - self.last_failure_time >= self.timeout:
+                    self.state = "HALF_OPEN"
+                    print("Circuit breaker: HALF_OPEN - attempting recovery")
+                else:
+                    print(f"Circuit breaker: OPEN - blocking call to RabbitMQ")
+                    return None
+                    
+            try:
+                result = await func(*args, **kwargs)
+                if self.state == "HALF_OPEN":
+                    self.state = "CLOSED"
+                    self.failure_count = 0
+                    print("Circuit breaker: CLOSED - service recovered")
+                return result
+            except Exception as e:
+                self.failure_count += 1
+                self.last_failure_time = datetime.utcnow().timestamp()
+                
+                if self.failure_count >= self.failure_threshold:
+                    self.state = "OPEN"
+                    print(f"Circuit breaker: OPEN - threshold reached ({self.failure_count} failures)")
+                else:
+                    print(f"Circuit breaker: Failure {self.failure_count}/{self.failure_threshold}")
+                    
+                raise e
+        return wrapper
+
+rabbitmq_circuit_breaker = CircuitBreaker(failure_threshold=3, timeout=30)
+
+@rabbitmq_circuit_breaker.call
+async def _publish_to_rabbitmq(event_type: str, payload: dict):
+    """Internal function to publish to RabbitMQ with timeout"""
+    connection = await asyncio.wait_for(
+        aio_pika.connect_robust(RABBIT_URL),
+        timeout=5.0
+    )
+    try:
+        channel = await connection.channel()
+        exchange = await channel.declare_exchange(
+            "user_events", aio_pika.ExchangeType.TOPIC, durable=True
+        )
+        message = aio_pika.Message(body=json.dumps(payload).encode())
+        await exchange.publish(message, routing_key=event_type)
+        print(f"Successfully published event: {event_type}")
+    finally:
+        await connection.close()
+
 async def publish_event(event_type: str, payload: dict):
+    """Publish event to RabbitMQ with circuit breaker protection"""
     print(f"Attempting to publish event: {event_type} with payload: {payload}")
     print(f"RABBIT_URL: {RABBIT_URL}")
     try:
@@ -36,15 +98,9 @@ async def publish_event(event_type: str, payload: dict):
             print("ERROR: RABBIT_URL is None or empty")
             return
         
-        connection = await aio_pika.connect_robust(RABBIT_URL)
-        channel = await connection.channel()
-        exchange = await channel.declare_exchange(
-            "user_events", aio_pika.ExchangeType.TOPIC, durable=True
-        )
-        message = aio_pika.Message(body=json.dumps(payload).encode())
-        await exchange.publish(message, routing_key=event_type)
-        await connection.close()
-        print(f"Successfully published event: {event_type}")
+        await _publish_to_rabbitmq(event_type, payload)
+    except asyncio.TimeoutError:
+        print(f"Timeout publishing event: {event_type}")
     except Exception as e:
         print(f"Failed to publish event: {e}")
 
