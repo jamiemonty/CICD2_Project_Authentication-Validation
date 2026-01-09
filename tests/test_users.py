@@ -1,63 +1,114 @@
 # tests/test_users.py
 import pytest
-
 from tests.conftest import client
 
-def user_payload(uid=1, name="Paul", email="pl@atu.ie", age=25, username="paul123", password="password123"):
-    return {"user_id": uid, "name": name, "email": email, "age": age, "username": username, "password": password}
-
-def test_create_user_ok(client):
-    r = client.post("/api/users", json=user_payload())
+def test_register_user_success(client):
+    """Test successful user registration"""
+    r = client.post("/api/users/register", params={
+        "name": "John Doe",
+        "email": "john@example.com",
+        "age": 25,
+        "password": "password123"
+    })
     assert r.status_code == 201
     data = r.json()
-    assert data["user_id"] == 1
-    assert data["name"] == "Paul"
+    assert "user_id" in data
+    assert data["msg"] == "User registered successfully"
 
-def test_duplicate_user_id_conflict(client):
-    client.post("/api/users", json=user_payload(uid=2))
-    r = client.post("/api/users", json=user_payload(uid=2))
-    assert r.status_code == 409 # duplicate id -> conflict
-    assert "exists" in r.json()["detail"].lower()   
+def test_register_duplicate_email(client):
+    """Test that duplicate email returns conflict"""
+    client.post("/api/users/register", params={
+        "name": "Jane Doe",
+        "email": "jane@example.com",
+        "age": 30,
+        "password": "password123"
+    })
+    r = client.post("/api/users/register", params={
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "age": 28,
+        "password": "password456"
+    })
+    assert r.status_code == 409
+    assert "exists" in r.json()["detail"].lower()
 
-@pytest.mark.parametrize("bad_username", ["ab", "a", ""])  # usernames too short
-def test_bad_username_422(client, bad_username):
-    r = client.post("/api/users", json=user_payload(uid=3, username=bad_username))
-    assert r.status_code == 422 # pydantic validation error
+def test_register_as_admin_forbidden(client):
+    """Test that registering with admin email is forbidden"""
+    r = client.post("/api/users/register", params={
+        "name": "Admin User",
+        "email": "G00419525@atu.ie",
+        "age": 30,
+        "password": "password123"
+    })
+    assert r.status_code == 403
+    assert "admin" in r.json()["detail"].lower()
 
-def test_get_user_404(client):
-    r = client.get("/api/users/999")
-    assert r.status_code == 404
-
-def test_delete_then_404(client):
-    client.post("/api/users", json=user_payload(uid=10))
-    r1 = client.delete("/api/users/10")
-    assert r1.status_code == 204
-    r2 = client.delete("/api/users/10")
-    assert r2.status_code == 404
-
-def test_put_user_success(client):
-    # First create a user
-    client.post("/api/users", json=user_payload(uid=5))
+def test_login_success(client):
+    """Test successful login"""
+    # Register user first
+    client.post("/api/users/register", params={
+        "name": "Login Test",
+        "email": "logintest@example.com",
+        "age": 25,
+        "password": "testpass123"
+    })
     
-    # Update the user with new data
-    updated_data = user_payload(uid=5, name="Updated Paul")
-    r = client.put("/api/users/5", json=updated_data)
-    
-    assert r.status_code == 200
+    # Now login
+    r = client.post("/api/users/login", data={
+        "username": "logintest@example.com",
+        "password": "testpass123"
+    })
+    assert r.status_code == 202
     data = r.json()
-    assert data["user_id"] == 5
-    assert data["name"] == "Updated Paul"
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
 
-def test_put_user_not_found(client):
-    # Try to update a user that doesn't exist
-    updated_data = user_payload(uid=999)
-    r = client.put("/api/users/999", json=updated_data)
+def test_login_invalid_credentials(client):
+    """Test login with wrong password"""
+    # Register user first
+    client.post("/api/users/register", params={
+        "name": "Wrong Pass",
+        "email": "wrongpass@example.com",
+        "age": 25,
+        "password": "correctpass"
+    })
     
-    assert r.status_code == 404
-    assert "not found" in r.json()["detail"].lower()
+    # Try wrong password
+    r = client.post("/api/users/login", data={
+        "username": "wrongpass@example.com",
+        "password": "wrongpassword"
+    })
+    assert r.status_code == 401
+    assert "credentials" in r.json()["detail"].lower()
 
-@pytest.mark.parametrize("bad_email", ["bademail", "user@.com", "user@com", "@domain.com", "user@domain", "user.com"])
-def test_bad_email_422_on_create(client, bad_email):
-    r = client.post("/api/users", json=user_payload(uid=20, email=bad_email))
-    assert r.status_code == 422 # pydantic validation error     
-    assert "value is not a valid email address" in r.json()["detail"][0]["msg"]
+def test_login_nonexistent_user(client):
+    """Test login with user that doesn't exist"""
+    r = client.post("/api/users/login", data={
+        "username": "nonexistent@example.com",
+        "password": "anypassword"
+    })
+    assert r.status_code == 401
+
+def test_admin_login(client):
+    """Test that admin user can login"""
+    r = client.post("/api/users/login", data={
+        "username": "G00419525@atu.ie",
+        "password": "password"
+    })
+    assert r.status_code == 202
+    data = r.json()
+    assert "access_token" in data
+
+def test_register_multiple_users(client):
+    """Test registering multiple different users"""
+    users = [
+        {"name": "User1", "email": "user1@test.com", "age": 25, "password": "pass1234"},
+        {"name": "User2", "email": "user2@test.com", "age": 30, "password": "pass5678"},
+        {"name": "User3", "email": "user3@test.com", "age": 35, "password": "pass9012"},
+    ]
+    
+    for user in users:
+        r = client.post("/api/users/register", params=user)
+        assert r.status_code == 201
+        data = r.json()
+        assert "user_id" in data
