@@ -31,7 +31,7 @@ def _schema():
     db = TestingSessionLocal()
     try:
         admin_email = os.getenv("ADMIN_EMAIL", "G00419525@atu.ie")
-        admin_password = os.getenv("ADMIN_PASSWORD", "password")
+        admin_password = os.getenv("ADMIN_PASSWORD", "Admin123!")  # Default meets complexity
         admin = db.query(User).filter(User.email == admin_email).first()
         if not admin:
             hashed_pw = hash_password(admin_password)

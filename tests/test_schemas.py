@@ -64,12 +64,12 @@ def test_user_create_valid():
         name="Jane Doe",
         email="jane@example.com",
         age=30,
-        password="password123"
+        password="Password123!"
     )
     assert user.name == "Jane Doe"
     assert user.email == "jane@example.com"
     assert user.age == 30
-    assert user.password == "password123"
+    assert user.password == "Password123!"
 
 def test_user_create_password_too_short():
     """Test that password must be at least 8 characters"""
@@ -78,7 +78,7 @@ def test_user_create_password_too_short():
             name="Jane",
             email="jane@example.com",
             age=30,
-            password="short"  # Too short
+            password="Pass1!"  # Too short but meets complexity
         )
 
 def test_user_create_password_too_long():
@@ -88,7 +88,7 @@ def test_user_create_password_too_long():
             name="Jane",
             email="jane@example.com",
             age=30,
-            password="A" * 61  # Too long
+            password="A1!" + "a" * 58  # Too long but meets complexity
         )
 
 def test_user_create_password_min_length():
@@ -97,7 +97,7 @@ def test_user_create_password_min_length():
         name="Jane",
         email="jane@example.com",
         age=30,
-        password="12345678"  # Exactly 8
+        password="Pass123!"  # Exactly 8 with complexity
     )
     assert len(user.password) == 8
 
@@ -107,9 +107,52 @@ def test_user_create_password_max_length():
         name="Jane",
         email="jane@example.com",
         age=30,
-        password="A" * 60  # Exactly 60
+        password="A1!" + "a" * 57  # Exactly 60 with complexity
     )
     assert len(user.password) == 60
+
+def test_password_missing_uppercase():
+    """Test that password must contain an uppercase letter"""
+    with pytest.raises(ValidationError) as exc_info:
+        UserCreate(
+            name="Jane",
+            email="jane@example.com",
+            age=30,
+            password="password123!"  # No uppercase
+        )
+    assert "uppercase letter" in str(exc_info.value)
+
+def test_password_missing_number():
+    """Test that password must contain a number"""
+    with pytest.raises(ValidationError) as exc_info:
+        UserCreate(
+            name="Jane",
+            email="jane@example.com",
+            age=30,
+            password="Password!"  # No number
+        )
+    assert "number" in str(exc_info.value)
+
+def test_password_missing_symbol():
+    """Test that password must contain a symbol"""
+    with pytest.raises(ValidationError) as exc_info:
+        UserCreate(
+            name="Jane",
+            email="jane@example.com",
+            age=30,
+            password="Password123"  # No symbol
+        )
+    assert "symbol" in str(exc_info.value)
+
+def test_password_all_requirements():
+    """Test that password with all requirements is valid"""
+    user = UserCreate(
+        name="Jane",
+        email="jane@example.com",
+        age=30,
+        password="MyP@ssw0rd"  # Has uppercase, number, and symbol
+    )
+    assert user.password == "MyP@ssw0rd"
 
 def test_user_model_complete():
     """Test the complete User model"""
